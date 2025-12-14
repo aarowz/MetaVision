@@ -8,7 +8,7 @@ Predicting electromagnetic field distributions from metasurface geometry using V
 - Reduce computation time from hours to seconds
 
 ## 🚀 Status
-🚧 In Progress (Dec 2024)
+🚧 In Progress (Dec 2025)
 
 ## 📊 Results
 Coming soon...
