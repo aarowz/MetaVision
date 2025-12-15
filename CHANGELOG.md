@@ -9,13 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### TODO
 
-- Verify and refine exploration script for all 11 datasets
-- Generate visualizations for all input/output pairs
 - Implement data pipeline (Dataset class, preprocessing)
 - Design ViT model architecture
 - Implement training loop
 - Add evaluation metrics
 - Create inference script
+
+## [2025-12-14] - Data Exploration Complete
+
+### Added
+
+- Enhanced exploration script with CLI support for processing specific files or all files
+- Colorbars and value ranges in visualizations for better data interpretation
+- Path resolution fixes to work from any directory
+- Generated visualizations for all 11 datasets (input geometry and output EM fields)
+
+### Changed
+
+- Updated `.gitignore` to exclude generated PNG files (users can regenerate)
+- Improved visualization clarity with colorbars showing value ranges
+- Script now processes all 11 files by default with option to specify individual files
+
+### Fixed
+
+- Path resolution issues when running script from different directories
 
 ## [2025-12-14] - Initial Setup
 
