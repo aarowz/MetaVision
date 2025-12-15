@@ -1,0 +1,39 @@
+# Data files (not publicly available)
+data/raw/*.mat
+data/processed/*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyTorch
+*.pth
+*.pt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Results (keep structure, ignore large files)
+results/models/*
+results/logs/*
+!results/models/.gitkeep
+!results/logs/.gitkeep
+
