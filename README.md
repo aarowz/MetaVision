@@ -52,3 +52,21 @@ MetaVision/
 
 ## 📝 License
 MIT
+
+## 🚀 Getting Started
+
+### Data Exploration
+
+After obtaining the dataset, you can generate visualizations:
+
+```bash
+# Generate visualizations for all 11 files
+python3 notebooks/explore_data.py
+
+# Generate visualizations for specific files
+python3 notebooks/explore_data.py 0 2 5
+```
+
+Visualizations are saved to `results/figures/exploration/` with:
+- Input geometry: `input/geometry_{0-10}.png`
+- Output EM fields: `output/fields_{0-10}.png`
