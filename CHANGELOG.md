@@ -9,11 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### TODO
 
-- Implement data pipeline (Dataset class, preprocessing)
 - Design ViT model architecture
 - Implement training loop
 - Add evaluation metrics
 - Create inference script
+- Get real normalization parameters from `analyze_ranges.py` and update dataset defaults
+
+## [2025-12-14] - Data Loader Complete
+
+### Added
+
+- Complete PyTorch Dataset implementation (`src/data_loader.py`) with:
+  - `MetasurfaceDataset` class for loading and preprocessing .mat files
+  - Input preprocessing: Stacks R, H, D[0], D[1] into 4-channel tensor `[4, 120, 120]`
+  - Output preprocessing: Converts complex Ex, Ey, Ez to 6-channel tensor `[6, H, W]` (real+imag)
+  - Downsampling: Bilinear interpolation from 2883×2883 to configurable resolution (default: 120×120)
+  - Normalization: Min-max for inputs `[0, 1]`, max-abs for outputs
+  - Train/val/test split helper function (`create_train_val_test_splits`)
+- Comprehensive test suite (`notebooks/test_data_loader.py`) with 8 tests:
+  - Basic loading and shape verification
+  - Normalization functionality
+  - Different output resolutions
+  - Multiple file loading
+  - Train/val/test splits
+  - PyTorch DataLoader integration
+  - Custom normalization parameters
+  - All 11 files loadable verification
+- Data range analysis script (`notebooks/analyze_ranges.py`) for computing normalization parameters
+
+### Changed
+
+- Updated CHANGELOG TODO: Removed "Implement data pipeline" (completed)
+
+### Fixed
+
+- All 11 data files verified loadable and have correct shapes
+- Path resolution in test script works from any directory
+
+### Notes
+
+- Normalization parameters currently use placeholder defaults - should run `analyze_ranges.py` to get actual values
+- Default output resolution matches input (120×120) but can be configured
 
 ## [2025-12-14] - Data Exploration Complete
 

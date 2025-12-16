@@ -70,3 +70,42 @@ python3 notebooks/explore_data.py 0 2 5
 Visualizations are saved to `results/figures/exploration/` with:
 - Input geometry: `input/geometry_{0-10}.png`
 - Output EM fields: `output/fields_{0-10}.png`
+
+### Data Loading
+
+The project includes a complete PyTorch Dataset implementation for loading and preprocessing the metasurface data:
+
+```python
+from pathlib import Path
+from src.data_loader import MetasurfaceDataset, create_train_val_test_splits
+from torch.utils.data import DataLoader
+
+# Create train/val/test splits
+train_idx, val_idx, test_idx = create_train_val_test_splits(total_files=11)
+
+# Create dataset
+train_dataset = MetasurfaceDataset(
+    data_dir=Path('data/raw'),
+    file_indices=train_idx,
+    split='train',
+    normalize_input=True,
+    normalize_output=True
+)
+
+# Create DataLoader
+train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+```
+
+### Testing
+
+Run the comprehensive test suite to verify data loading:
+
+```bash
+python3 notebooks/test_data_loader.py
+```
+
+This will verify:
+- All 11 files can be loaded successfully
+- Input/output shapes are correct
+- Normalization works as expected
+- DataLoader integration functions properly
