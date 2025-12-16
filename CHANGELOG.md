@@ -7,12 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2025-12-16] - Model Implementation and Training Script Complete
+
+### Added
+
+- Model architecture implementation (`src/model.py`):
+  - Custom ViT encoder: 4-channel patch embedding, 6 transformer layers (384 dim, 6 heads)
+  - CNN decoder: 3-stage upsampling (15→30→60→120) with channel progression [256,128,64,32]
+  - Output head: 6-channel projection (Ex/Ey/Ez real+imag) with no activation
+  - Architecture optimized for image-to-image regression (no CLS token, spatial preservation)
+  - Total parameters: ~11.5M
+- Training script (`train.py`):
+  - Complete training pipeline with config-driven setup
+  - Data loading with augmentation (training only)
+  - Optimizer support (AdamW/Adam/SGD)
+  - Learning rate schedulers (Cosine/Step/Plateau)
+  - Loss functions (MSE/MAE/Huber/Combined)
+  - Checkpointing (best model, latest, periodic)
+  - Early stopping with configurable patience
+  - TensorBoard logging
+  - Mixed precision training support (AMP)
+  - Resume training from checkpoint
+- Model test script (`notebooks/test_model.py`):
+  - Forward pass verification
+  - Shape validation for different batch sizes
+  - Parameter counting
+- Model architecture documentation in README
+
+### Changed
+
+- Config: Updated output activation from "tanh" to "none" (unbounded regression)
+- Config: Fixed scheduler T_max from 200 steps to 50 epochs (matches epoch-based stepping)
+
+### Design Decisions
+
+- **No CLS token**: Excluded for spatial image-to-image task (225 patch tokens only)
+- **Learnable positional encoding**: Standard for custom ViT without pre-training
+- **Patch size 8**: Divides evenly into 120×120 input (15×15 = 225 patches)
+- **ViT-Small**: 384 dim, 6 layers optimized for small dataset (~8 training samples)
+- **No skip connections**: Baseline architecture (can add later if needed)
+- **Unbounded output**: No final activation - normalization handles EM field scaling
+
 ### TODO
 
-- Design ViT model architecture
-- Implement training loop
-- Add evaluation metrics
-- Create inference script
+- Run training and evaluate results
+- Add evaluation metrics module (`src/metrics.py`)
+- Create inference script (`inference.py`)
 - Get real normalization parameters from `analyze_ranges.py` and update dataset defaults
 
 ## [2025-12-15] - Configuration and Augmentation Complete

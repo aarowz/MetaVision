@@ -68,7 +68,7 @@ model:
   # Output head
   output_head:
     final_channels: 6 # Output channels (Ex_real, Ex_imag, Ey_real, Ey_imag, Ez_real, Ez_imag)
-    activation: "tanh" # Final activation (or "none" for raw output)
+    activation: "none" # Final activation (or "none" for raw output)
 
 # ============================================================================
 # TRAINING CONFIGURATION
@@ -90,9 +90,9 @@ training:
   scheduler: "cosine" # Options: "cosine", "step", "plateau", "none"
   scheduler_params:
     # Cosine annealing
-    # T_max calculated as: (num_train_samples / batch_size) * num_epochs
-    # With ~8 train samples, batch_size=2, 50 epochs: (8/2)*50 = 200 steps
-    T_max: 200 # Maximum number of training steps (not epochs)
+    # T_max is the number of epochs for cosine annealing
+    # Set to num_epochs (50) to anneal over full training period
+    T_max: 50 # Maximum number of epochs for cosine annealing
     eta_min: 1e-6 # Minimum learning rate
     # Step decay (if scheduler="step")
     # step_size: 30

@@ -41,6 +41,41 @@ The dataset contains:
 - CUDA
 - NumPy/SciPy
 
+## 🏗️ Model Architecture
+
+**Vision Transformer Encoder + CNN Decoder** for image-to-image regression.
+
+### Encoder (ViT)
+
+- **Input**: `[B, 4, 120, 120]` (R, H, D[0], D[1] geometry channels)
+- **Patch Embedding**: Conv2d(4→384, kernel=8, stride=8) → 15×15 = 225 patches
+- **Positional Encoding**: Learnable embeddings (no CLS token - spatial task)
+- **Transformer Blocks**: 6 layers, 6 heads, 384 dim, GELU activation, pre-norm
+- **Output**: `[B, 225, 384]` patch tokens
+
+### Decoder (CNN)
+
+- **Input Projection**: Conv2d(384→256, kernel=1) → `[B, 256, 15, 15]`
+- **Upsampling Stages**: 3 stages of 2× bilinear upsampling
+  - Stage 1: 15×15 → 30×30 (256→128 channels)
+  - Stage 2: 30×30 → 60×60 (128→64 channels)
+  - Stage 3: 60×60 → 120×120 (64→32 channels)
+- **Block Structure**: Upsample → Conv → BN → ReLU → Conv → BN → ReLU
+
+### Output Head
+
+- **Final Projection**: Conv2d(32→6, kernel=1)
+- **Activation**: None (unbounded regression output)
+- **Output**: `[B, 6, 120, 120]` (Ex/Ey/Ez real+imaginary components)
+
+### Design Decisions
+
+- **No CLS token**: Image-to-image task requires spatial preservation
+- **Patch size 8**: Divides evenly into 120×120 input (15×15 patches)
+- **ViT-Small**: 384 dim, 6 layers (optimized for small dataset ~8 training samples)
+- **No pre-training**: 4-channel input incompatible with ImageNet (3-channel)
+- **Unbounded output**: EM fields have large dynamic range, normalization handles scaling
+
 ## 📁 Project Structure
 
 ```
@@ -185,9 +220,45 @@ Edit `config.yaml` to experiment with different hyperparameters.
 ### Data Augmentation
 
 The project includes physics-preserving data augmentation (`src/augmentation.py`):
+
 - Horizontal/Vertical flips
 - 90°/180°/270° rotations
 - Preserves metasurface geometry physics
 - Can expand 8 training samples → 64 augmented variants
 
 Configure in `config.yaml` under `data_augmentation` section.
+
+### Training
+
+Train the model using the training script:
+
+```bash
+# Activate virtual environment first
+source venv/bin/activate
+
+# Run training
+python3 train.py
+```
+
+The training script will:
+- Load configuration from `config.yaml`
+- Create train/val/test splits
+- Apply data augmentation during training
+- Save checkpoints to `results/models/`
+- Log metrics to TensorBoard (`results/logs/tensorboard/`)
+- Implement early stopping if validation loss doesn't improve
+
+Monitor training progress:
+```bash
+# In a separate terminal
+tensorboard --logdir results/logs/tensorboard
+```
+
+Then open `http://localhost:6006` in your browser.
+
+**Configuration**: All training hyperparameters are in `config.yaml`:
+- Model architecture (ViT encoder, CNN decoder)
+- Training parameters (batch size, epochs, learning rate)
+- Optimizer and scheduler settings
+- Early stopping configuration
+- Data augmentation settings
