@@ -15,6 +15,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Create inference script
 - Get real normalization parameters from `analyze_ranges.py` and update dataset defaults
 
+## [2025-12-14] - Configuration and Augmentation Complete
+
+### Added
+
+- Comprehensive `config.yaml` with all hyperparameters:
+  - Data configuration (paths, normalization, splits)
+  - Model architecture (ViT-small: 384 dim, 6 layers, patch_size=8)
+  - Training hyperparameters (optimized for small dataset)
+  - System configuration (device, paths, reproducibility)
+  - Inference and logging settings
+- Data augmentation module (`src/augmentation.py`):
+  - Physics-preserving geometric augmentations (flips, rotations)
+  - Can 8x training data: 8 samples → 64 augmented samples
+  - Critical for small dataset generalization
+- Data augmentation configuration in `config.yaml`
+
+### Changed
+
+- Model architecture optimized for small dataset:
+  - ViT-base → ViT-small (384 dim, 6 layers vs 768 dim, 12 layers)
+  - Patch size: 16 → 8 (divides evenly into 120×120 input)
+  - Pre-trained weights: disabled (4-channel input incompatible with ImageNet)
+  - Increased dropout (0.0 → 0.1) for regularization
+- Training parameters optimized:
+  - Batch size: 4 → 2 (better for ~8 training samples)
+  - Epochs: 100 → 50 (reduced for small dataset)
+  - Weight decay: 0.01 → 0.05 (increased regularization)
+  - Early stopping patience: 15 → 10
+  - Scheduler T_max: calculated based on training steps (200)
+
+### Fixed
+
+- Patch size now divides evenly: 120 ÷ 8 = 15 patches per side
+- Scheduler T_max now uses training steps instead of epochs
+- All hyperparameters validated against actual dataset size
+
+### Notes
+
+- Normalization parameters still use placeholders - need to run `analyze_ranges.py`
+- Augmentation is critical for this small dataset - enables better generalization
+
 ## [2025-12-14] - Project Setup Complete
 
 ### Added

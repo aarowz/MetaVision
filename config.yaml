@@ -1,0 +1,196 @@
+# MetaVision Configuration File
+# Configuration for Vision Transformer model training and inference
+
+# ============================================================================
+# DATA CONFIGURATION
+# ============================================================================
+data:
+  # Data directory paths
+  data_dir: "data/raw"
+  processed_dir: "data/processed"
+
+  # Input/Output specifications
+  input_channels: 4 # R, H, D[0], D[1]
+  input_resolution: [120, 120]
+  output_channels: 6 # Ex_real, Ex_imag, Ey_real, Ey_imag, Ez_real, Ez_imag
+  output_resolution: [120, 120] # Can be changed to [240, 240] for higher resolution
+
+  # Train/Val/Test split
+  total_files: 11
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  split_seed: 42
+
+  # Normalization parameters
+  # TODO: Run notebooks/analyze_ranges.py to get actual values and update these
+  normalize_input: true
+  normalize_output: true
+  input_norm_params:
+    R: [0.0, 10.0] # [min, max] - placeholder, update with real values
+    H: [0.0, 100.0]
+    D0: [-10.0, 10.0]
+    D1: [-10.0, 10.0]
+  output_norm_params:
+    Ex: 1000.0 # max absolute value - placeholder, update with real values
+    Ey: 1000.0
+    Ez: 1000.0
+
+# ============================================================================
+# MODEL ARCHITECTURE
+# ============================================================================
+model:
+  # Vision Transformer Encoder
+  encoder:
+    name: "custom" # Using custom ViT (4-channel input, no ImageNet pretraining)
+    use_pretrained: false # Cannot use ImageNet pretrained (4-channel vs 3-channel RGB)
+    patch_size: 8 # 8x8 patches (for 120x120 input: 15x15 = 225 patches, divides evenly)
+    img_size: 120 # Input image size
+    in_chans: 4 # 4-channel input (R, H, D[0], D[1])
+    embed_dim: 384 # Embedding dimension (small ViT - better for small dataset)
+    depth: 6 # Number of transformer layers (reduced for small dataset)
+    num_heads: 6 # Number of attention heads (384 / 64 = 6)
+    mlp_ratio: 4.0 # MLP hidden dimension ratio
+    qkv_bias: true
+    drop_rate: 0.1 # Dropout rate (increased regularization for small dataset)
+    attn_drop_rate: 0.1 # Attention dropout rate (increased regularization)
+    drop_path_rate: 0.1 # Stochastic depth rate
+
+  # Decoder (maps ViT features to output image)
+  decoder:
+    type: "cnn" # Options: "cnn", "transformer", "hybrid"
+    # CNN Decoder settings (adjusted for smaller encoder)
+    decoder_channels: [256, 128, 64, 32] # Channel progression (reduced to match smaller encoder)
+    decoder_upsample: "bilinear" # Upsampling method: "bilinear", "transpose"
+    use_batch_norm: true
+    activation: "relu" # Options: "relu", "gelu", "swish"
+
+  # Output head
+  output_head:
+    final_channels: 6 # Output channels (Ex_real, Ex_imag, Ey_real, Ey_imag, Ez_real, Ez_imag)
+    activation: "tanh" # Final activation (or "none" for raw output)
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+training:
+  # Basic training parameters
+  batch_size: 2 # Small batch size for tiny dataset (~8 train samples = 4 batches/epoch)
+  num_epochs: 50 # Reduced epochs for small dataset (overfitting happens quickly)
+  learning_rate: 1e-4
+  weight_decay: 0.05 # Increased regularization for small dataset
+
+  # Optimizer
+  optimizer: "adamw" # Options: "adam", "adamw", "sgd"
+  optimizer_params:
+    betas: [0.9, 0.999]
+    eps: 1e-8
+
+  # Learning rate scheduler
+  scheduler: "cosine" # Options: "cosine", "step", "plateau", "none"
+  scheduler_params:
+    # Cosine annealing
+    # T_max calculated as: (num_train_samples / batch_size) * num_epochs
+    # With ~8 train samples, batch_size=2, 50 epochs: (8/2)*50 = 200 steps
+    T_max: 200 # Maximum number of training steps (not epochs)
+    eta_min: 1e-6 # Minimum learning rate
+    # Step decay (if scheduler="step")
+    # step_size: 30
+    # gamma: 0.1
+
+  # Loss function
+  loss: "mse" # Options: "mse", "mae", "huber", "combined"
+  loss_params:
+    # For combined loss
+    # mse_weight: 0.7
+    # mae_weight: 0.3
+
+  # Training settings
+  gradient_clip: 1.0 # Gradient clipping norm (0 to disable)
+  mixed_precision: false # Use mixed precision training (AMP)
+  accumulate_grad_batches: 1 # Gradient accumulation steps
+
+  # Validation
+  val_check_interval: 1.0 # Validate every N epochs (1.0 = every epoch)
+  save_top_k: 3 # Save top K models based on validation loss
+
+  # Early stopping
+  early_stopping:
+    enabled: true
+    patience: 10 # Reduced patience for small dataset (overfitting happens quickly)
+    min_delta: 1e-6 # Minimum change to qualify as improvement
+    monitor: "val_loss" # Metric to monitor
+
+# ============================================================================
+# DATA AUGMENTATION
+# ============================================================================
+# Critical for small dataset (~8 training samples)
+# Augmentation can 8x your data: 8 samples → 64 augmented samples
+data_augmentation:
+  enabled: true
+
+  # Geometric augmentations (preserve physics of metasurface geometry)
+  horizontal_flip: true
+  vertical_flip: true
+  rotation_90: true # 90° rotations (preserves square geometry)
+  rotation_180: true
+  rotation_270: true
+
+  # Probability of applying each augmentation
+  flip_prob: 0.5
+  rotation_prob: 0.5
+
+  # Note: Avoid random crops/scaling (changes physics)
+  # Note: Avoid color jitter (not applicable to geometry data)
+  # Note: Augmentations are applied randomly during training only
+
+# ============================================================================
+# EVALUATION METRICS
+# ============================================================================
+metrics:
+  # Metrics to compute during validation/testing
+  - "mse" # Mean Squared Error
+  - "mae" # Mean Absolute Error
+  - "ssim" # Structural Similarity Index (optional, requires scikit-image)
+
+# ============================================================================
+# SYSTEM CONFIGURATION
+# ============================================================================
+system:
+  # Hardware
+  device: "cuda" # Options: "cuda", "cpu", "mps" (for Apple Silicon)
+  num_workers: 4 # DataLoader workers (0 = single-threaded)
+  pin_memory: true # Pin memory for faster GPU transfer
+
+  # Reproducibility
+  seed: 42
+  deterministic: true # Make training deterministic (slower but reproducible)
+
+  # Paths
+  checkpoint_dir: "results/models"
+  log_dir: "results/logs"
+  tensorboard_dir: "results/logs/tensorboard"
+
+  # Checkpointing
+  save_every_n_epochs: 10 # Save checkpoint every N epochs
+  resume_from_checkpoint: null # Path to checkpoint to resume from (null = start fresh)
+
+# ============================================================================
+# INFERENCE CONFIGURATION
+# ============================================================================
+inference:
+  checkpoint_path: "results/models/best_model.pth" # Path to trained model
+  output_dir: "results/figures/predictions"
+  save_predictions: true
+  visualize: true # Generate visualization plots (will be excluded from git)
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+logging:
+  use_tensorboard: true
+  use_wandb: false # Weights & Biases (requires wandb account)
+  wandb_project: "metavision" # W&B project name
+  log_every_n_steps: 10 # Log metrics every N steps
+  log_images: false # Log sample images to tensorboard (can expose data)
+

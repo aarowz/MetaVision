@@ -170,3 +170,24 @@ This will verify:
 - Input/output shapes are correct
 - Normalization works as expected
 - DataLoader integration functions properly
+
+### Configuration
+
+The project uses `config.yaml` for all hyperparameters. Key settings:
+
+- **Model**: ViT-small (384 dim, 6 layers) optimized for small dataset
+- **Training**: Batch size 2, 50 epochs, aggressive regularization
+- **Data Augmentation**: Enabled by default (flips, rotations) to 8x training data
+- **Normalization**: Placeholder values - run `notebooks/analyze_ranges.py` to get real values
+
+Edit `config.yaml` to experiment with different hyperparameters.
+
+### Data Augmentation
+
+The project includes physics-preserving data augmentation (`src/augmentation.py`):
+- Horizontal/Vertical flips
+- 90°/180°/270° rotations
+- Preserves metasurface geometry physics
+- Can expand 8 training samples → 64 augmented variants
+
+Configure in `config.yaml` under `data_augmentation` section.
