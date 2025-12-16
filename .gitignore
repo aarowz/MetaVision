@@ -34,6 +34,7 @@ Thumbs.db
 # Results (keep structure, ignore large files)
 results/models/*
 results/logs/*
+results/figures/**/*.png  # Exclude visualization PNGs (dataset privacy)
 !results/models/.gitkeep
 !results/logs/.gitkeep
 
