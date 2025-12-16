@@ -3,14 +3,17 @@
 Predicting electromagnetic field distributions from metasurface geometry using Vision Transformers.
 
 ## 🎯 Project Goals
+
 - Develop ViT-based model for EM field prediction
 - Achieve competitive accuracy with FDTD simulation
 - Reduce computation time from hours to seconds
 
 ## 🚀 Status
+
 🚧 In Progress (Dec 2025)
 
 ## 📊 Results
+
 Coming soon...
 
 ## 📦 Data Access
@@ -18,11 +21,13 @@ Coming soon...
 The dataset (11 .mat files) is not included in this repository due to licensing/usage restrictions.
 
 To request access to the dataset, please contact the repository maintainer with:
+
 - Your name and affiliation
 - Intended use case
 - Brief description of your research/project
 
 The dataset contains:
+
 - 11 metasurface geometry configurations
 - Corresponding FDTD-simulated EM field distributions
 - Format: MATLAB .mat files (~200MB each)
@@ -30,12 +35,14 @@ The dataset contains:
 - Output: EM field components (Ex, Ey, Ez) - Complex-valued, 2883×2883 resolution
 
 ## 🛠️ Tech Stack
+
 - PyTorch
 - Vision Transformer (ViT)
 - CUDA
 - NumPy/SciPy
 
 ## 📁 Project Structure
+
 ```
 MetaVision/
 ├── data/
@@ -51,7 +58,59 @@ MetaVision/
 ```
 
 ## 📝 License
+
 MIT
+
+## 🔧 Setup
+
+### Prerequisites
+
+- Python 3.10 or higher
+- pip (Python package manager)
+
+### Installation
+
+1. **Clone the repository** (if you haven't already):
+
+   ```bash
+   git clone https://github.com/aarowz/MetaVision.git
+   cd MetaVision
+   ```
+
+2. **Create a virtual environment** (recommended):
+
+   ```bash
+   python3 -m venv venv
+   ```
+
+3. **Activate the virtual environment**:
+
+   ```bash
+   # On macOS/Linux:
+   source venv/bin/activate
+
+   # On Windows:
+   venv\Scripts\activate
+   ```
+
+4. **Install dependencies**:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+5. **Verify installation**:
+   ```bash
+   python3 notebooks/test_data_loader.py
+   ```
+
+### Deactivating the Virtual Environment
+
+When you're done working, deactivate the virtual environment:
+
+```bash
+deactivate
+```
 
 ## 🚀 Getting Started
 
@@ -68,6 +127,7 @@ python3 notebooks/explore_data.py 0 2 5
 ```
 
 Visualizations are saved to `results/figures/exploration/` with:
+
 - Input geometry: `input/geometry_{0-10}.png`
 - Output EM fields: `output/fields_{0-10}.png`
 
@@ -105,6 +165,7 @@ python3 notebooks/test_data_loader.py
 ```
 
 This will verify:
+
 - All 11 files can be loaded successfully
 - Input/output shapes are correct
 - Normalization works as expected

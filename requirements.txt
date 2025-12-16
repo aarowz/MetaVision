@@ -1,0 +1,34 @@
+# Core Deep Learning Framework
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Vision Transformer (choose one approach)
+# Option 1: Use timm (recommended - more flexible, better pre-trained models)
+timm>=0.9.0
+# Option 2: Use torchvision's ViT (alternative)
+# torchvision already included above
+
+# Scientific Computing (already in use)
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Visualization (already in use)
+matplotlib>=3.7.0
+
+# Configuration Management
+pyyaml>=6.0
+
+# Logging and Monitoring
+tensorboard>=2.13.0
+# Optional: wandb for experiment tracking
+# wandb>=0.15.0
+
+# Utilities
+tqdm>=4.65.0  # Progress bars
+pillow>=9.5.0  # Image processing (if needed for visualizations)
+
+# Optional: For better performance
+# accelerate>=0.20.0  # For mixed precision training
+# Optional: For model evaluation metrics
+# scikit-image>=0.21.0  # For SSIM metric
+

@@ -9,11 +9,6 @@ Data Exploration Script
 
 Loads and visualizes metasurface geometry (R, H, dx, dy) and EM field data (Ex, Ey, Ez)
 from .mat files to understand data structure before model training.
-
-Usage:
-    python explore_data.py              # Process all 11 files
-    python explore_data.py 0 2 5         # Process files 0, 2, and 5
-    python explore_data.py 5             # Process only file 5
 """
 
 # Get script directory and project root (works regardless of where script is run from)

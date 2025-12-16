@@ -15,6 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Create inference script
 - Get real normalization parameters from `analyze_ranges.py` and update dataset defaults
 
+## [2025-12-14] - Project Setup Complete
+
+### Added
+
+- `requirements.txt` with all project dependencies:
+  - PyTorch and torchvision for deep learning
+  - timm for Vision Transformer models
+  - NumPy, SciPy, Matplotlib (already in use)
+  - PyYAML for configuration management
+  - TensorBoard for training logs
+  - tqdm for progress bars
+- Virtual environment setup instructions in README
+- Installation and setup documentation
+
+### Changed
+
+- Updated README with comprehensive setup instructions
+- Added virtual environment recommendations for reproducibility
+
 ## [2025-12-14] - Data Loader Complete
 
 ### Added
