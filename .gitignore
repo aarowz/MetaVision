@@ -16,9 +16,10 @@ ENV/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# PyTorch
+# PyTorch (exclude model files globally, but allow in results/models/)
 *.pth
 *.pt
+!results/models/*.pth  # Allow sharing model weights
 
 # IDE
 .vscode/
@@ -31,10 +32,23 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Results (keep structure, ignore large files)
+# Results - Share metrics/weights, keep visualizations private
+# Models: Allow .pth files (weights), exclude everything else
 results/models/*
-results/logs/*
-results/figures/**/*.png  # Exclude visualization PNGs (dataset privacy)
+!results/models/*.pth
 !results/models/.gitkeep
+
+# Logs: Allow text files (metrics), exclude images
+results/logs/*
+!results/logs/*.txt
+!results/logs/*.csv
+!results/logs/*.json
 !results/logs/.gitkeep
+
+# Figures: Exclude all visualizations showing patterns (keep private)
+results/figures/**/*.png
+results/figures/**/*.jpg
+results/figures/**/*.jpeg
+results/figures/**/*.svg
+results/figures/**/*.pdf
 
