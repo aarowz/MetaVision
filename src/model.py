@@ -6,30 +6,30 @@ from typing import Optional, Dict
 """
 Vision Transformer Model for EM Field Prediction
 
-Custom ViT encoder + CNN decoder architecture for predicting electromagnetic
-field distributions from metasurface geometry images.
+Custom ViT encoder architecture for predicting electromagnetic field distributions
+from metasurface geometry images.
 
 Architecture:
 - Encoder: Custom Vision Transformer (4-channel input, no CLS token)
-- Decoder: CNN with 3-stage upsampling (15×15 → 30×30 → 60×60 → 120×120)
+- Output Head: Direct projection from ViT features to 6-channel output
 - Output: 6-channel EM field prediction (Ex/Ey/Ez real+imaginary components)
 
-Input: [B, 4, 120, 120] (R, H, D[0], D[1] geometry channels)
-Output: [B, 6, 120, 120] (Ex_real, Ex_imag, Ey_real, Ey_imag, Ez_real, Ez_imag)
+Input: [B, 4, 15, 15] (R, H, D[0], D[1] geometry channels - 15×15 blocks)
+Output: [B, 6, 15, 15] (Ex_real, Ex_imag, Ey_real, Ey_imag, Ez_real, Ez_imag)
 """
 
 
 class PatchEmbedding(nn.Module):
     """Convolutional patch embedding for 4-channel input."""
     
-    def __init__(self, img_size: int = 120, patch_size: int = 8, 
+    def __init__(self, img_size: int = 15, patch_size: int = 1, 
                  in_chans: int = 4, embed_dim: int = 384):
         super().__init__()
         self.img_size = img_size
         self.patch_size = patch_size
         self.n_patches = (img_size // patch_size) ** 2  # 15×15 = 225
         
-        # Convolutional patch embedding
+        # Convolutional patch embedding (patch_size=1 means pixel-wise projection)
         self.proj = nn.Conv2d(in_chans, embed_dim, 
                               kernel_size=patch_size, stride=patch_size)
     
@@ -38,11 +38,11 @@ class PatchEmbedding(nn.Module):
         Convert input image to patch tokens.
         
         Args:
-            x: [B, 4, 120, 120]
+            x: [B, 4, 15, 15]
         Returns:
             [B, 225, 384] (flattened patch tokens)
         """
-        # [B, 4, 120, 120] -> [B, 384, 15, 15]
+        # [B, 4, 15, 15] -> [B, 384, 15, 15] (patch_size=1 means no spatial reduction)
         x = self.proj(x)
         B, C, H, W = x.shape
         
@@ -248,7 +248,6 @@ class MetaVisionViT(nn.Module):
         
         # Extract config
         encoder_cfg = config['model']['encoder']
-        decoder_cfg = config['model']['decoder']
         output_cfg = config['model']['output_head']
         
         # ========== Encoder (ViT) ==========
@@ -280,32 +279,11 @@ class MetaVisionViT(nn.Module):
         
         self.encoder_norm = nn.LayerNorm(encoder_cfg['embed_dim'])
         
-        # ========== Decoder (CNN) ==========
-        # Initial projection: 384 -> 256
-        embed_dim = encoder_cfg['embed_dim']
-        decoder_start_channels = decoder_cfg['decoder_channels'][0]
-        self.decoder_proj = nn.Conv2d(embed_dim, decoder_start_channels, kernel_size=1)
-        
-        # Decoder stages
-        decoder_channels = decoder_cfg['decoder_channels']
-        self.decoder_blocks = nn.ModuleList()
-        
-        for i in range(len(decoder_channels) - 1):
-            in_ch = decoder_channels[i]
-            out_ch = decoder_channels[i + 1]
-            self.decoder_blocks.append(
-                DecoderBlock(
-                    in_channels=in_ch,
-                    out_channels=out_ch,
-                    use_batch_norm=decoder_cfg['use_batch_norm'],
-                    activation=decoder_cfg['activation']
-                )
-            )
-        
         # ========== Output Head ==========
+        # Direct projection from ViT features to output (no decoder upsampling)
+        embed_dim = encoder_cfg['embed_dim']
         final_channels = output_cfg['final_channels']
-        last_decoder_channels = decoder_channels[-1]  # 32
-        self.output_head = nn.Conv2d(last_decoder_channels, final_channels, kernel_size=1)
+        self.output_head = nn.Conv2d(embed_dim, final_channels, kernel_size=1)
         
         # Output activation (if specified)
         activation = output_cfg.get('activation', 'none').lower()
@@ -329,6 +307,11 @@ class MetaVisionViT(nn.Module):
         if self.patch_embed.proj.bias is not None:
             nn.init.constant_(self.patch_embed.proj.bias, 0)
         
+        # Initialize output head
+        nn.init.kaiming_normal_(self.output_head.weight, mode='fan_out', nonlinearity='relu')
+        if self.output_head.bias is not None:
+            nn.init.constant_(self.output_head.bias, 0)
+        
         # Initialize transformer blocks
         for block in self.blocks:
             nn.init.normal_(block.norm1.weight, mean=1.0, std=0.02)
@@ -341,14 +324,14 @@ class MetaVisionViT(nn.Module):
         Forward pass.
         
         Args:
-            x: [B, 4, 120, 120] (R, H, D[0], D[1])
+            x: [B, 4, 15, 15] (R, H, D[0], D[1] - 15×15 geometry blocks)
         Returns:
-            [B, 6, 120, 120] (Ex_real, Ex_imag, Ey_real, Ey_imag, Ez_real, Ez_imag)
+            [B, 6, 15, 15] (Ex_real, Ex_imag, Ey_real, Ey_imag, Ez_real, Ez_imag)
         """
         B = x.shape[0]
         
         # ========== Encoder ==========
-        # Patch embedding: [B, 4, 120, 120] -> [B, 225, 384]
+        # Patch embedding: [B, 4, 15, 15] -> [B, 225, 384]
         x = self.patch_embed(x)
         
         # Add positional encoding
@@ -361,20 +344,13 @@ class MetaVisionViT(nn.Module):
         # Final norm
         x = self.encoder_norm(x)  # [B, 225, 384]
         
-        # ========== Decoder ==========
+        # ========== Reshape to Spatial Grid ==========
         # Reshape to spatial grid: [B, 225, 384] -> [B, 384, 15, 15]
         H_patches = W_patches = int(self.patch_embed.n_patches ** 0.5)  # 15
         x = x.transpose(1, 2).reshape(B, -1, H_patches, W_patches)
         
-        # Initial projection: [B, 384, 15, 15] -> [B, 256, 15, 15]
-        x = self.decoder_proj(x)
-        
-        # Decoder stages: 15×15 -> 30×30 -> 60×60 -> 120×120
-        for decoder_block in self.decoder_blocks:
-            x = decoder_block(x)
-        
         # ========== Output Head ==========
-        # [B, 32, 120, 120] -> [B, 6, 120, 120]
+        # Direct projection: [B, 384, 15, 15] -> [B, 6, 15, 15]
         x = self.output_head(x)
         x = self.output_act(x)
         

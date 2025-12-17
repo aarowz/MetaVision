@@ -31,8 +31,8 @@ The dataset contains:
 - 11 metasurface geometry configurations
 - Corresponding FDTD-simulated EM field distributions
 - Format: MATLAB .mat files (~200MB each)
-- Input: Geometry parameters (R, H, D) - 4 channels, 120×120 resolution
-- Output: EM field components (Ex, Ey, Ez) - Complex-valued, 2883×2883 resolution
+- Input: Geometry parameters (R, H, D) - 4 channels, 120×120 resolution (extracted as 15×15 blocks)
+- Output: EM field components (Ex, Ey, Ez) - Complex-valued, 2883×2883 resolution (downsampled to 15×15)
 
 ## 🛠️ Tech Stack
 
@@ -43,38 +43,31 @@ The dataset contains:
 
 ## 🏗️ Model Architecture
 
-**Vision Transformer Encoder + CNN Decoder** for image-to-image regression.
+**Vision Transformer Encoder** for image-to-image regression (simplified architecture).
 
 ### Encoder (ViT)
 
-- **Input**: `[B, 4, 120, 120]` (R, H, D[0], D[1] geometry channels)
-- **Patch Embedding**: Conv2d(4→384, kernel=8, stride=8) → 15×15 = 225 patches
+- **Input**: `[B, 4, 15, 15]` (R, H, D[0], D[1] geometry channels - 15×15 blocks)
+- **Patch Embedding**: Conv2d(4→384, kernel=1, stride=1) → 15×15 = 225 patches (pixel-wise projection)
 - **Positional Encoding**: Learnable embeddings (no CLS token - spatial task)
-- **Transformer Blocks**: 6 layers, 6 heads, 384 dim, GELU activation, pre-norm
+- **Transformer Blocks**: 6 layers, 6 heads, 384 dim, GELU activation, pre-norm, stochastic depth (0.1)
 - **Output**: `[B, 225, 384]` patch tokens
-
-### Decoder (CNN)
-
-- **Input Projection**: Conv2d(384→256, kernel=1) → `[B, 256, 15, 15]`
-- **Upsampling Stages**: 3 stages of 2× bilinear upsampling
-  - Stage 1: 15×15 → 30×30 (256→128 channels)
-  - Stage 2: 30×30 → 60×60 (128→64 channels)
-  - Stage 3: 60×60 → 120×120 (64→32 channels)
-- **Block Structure**: Upsample → Conv → BN → ReLU → Conv → BN → ReLU
 
 ### Output Head
 
-- **Final Projection**: Conv2d(32→6, kernel=1)
+- **Reshape**: `[B, 225, 384]` → `[B, 384, 15, 15]` (spatial grid reconstruction)
+- **Direct Projection**: Conv2d(384→6, kernel=1)
 - **Activation**: None (unbounded regression output)
-- **Output**: `[B, 6, 120, 120]` (Ex/Ey/Ez real+imaginary components)
+- **Output**: `[B, 6, 15, 15]` (Ex/Ey/Ez real+imaginary components)
 
 ### Design Decisions
 
 - **No CLS token**: Image-to-image task requires spatial preservation
-- **Patch size 8**: Divides evenly into 120×120 input (15×15 patches)
-- **ViT-Small**: 384 dim, 6 layers (optimized for small dataset ~8 training samples)
+- **Patch size 1**: Pixel-wise projection for 15×15 input (15×15 = 225 patches)
+- **No decoder**: Direct projection from ViT features to output (simplified architecture)
+- **ViT-Small**: 384 dim, 6 layers (optimized for dataset)
 - **No pre-training**: 4-channel input incompatible with ImageNet (3-channel)
-- **Unbounded output**: EM fields have large dynamic range, normalization handles scaling
+- **Z-score normalization**: Applied in loss function (matches GAT's approach)
 
 ## 📁 Project Structure
 
@@ -170,6 +163,12 @@ Visualizations are saved to `results/figures/exploration/` with:
 
 The project includes a complete PyTorch Dataset implementation for loading and preprocessing the metasurface data:
 
+**Data Strategy (matching GAT approach):**
+- Extracts 15×15 blocks from larger 120×120 geometry images
+- 2000 random blocks per file (total ~22k training samples)
+- Input normalization: Min-max scaling per channel
+- Output normalization: Z-score normalization (computed from training set, applied in loss)
+
 ```python
 from pathlib import Path
 from src.data_loader import MetasurfaceDataset, create_train_val_test_splits
@@ -184,11 +183,20 @@ train_dataset = MetasurfaceDataset(
     file_indices=train_idx,
     split='train',
     normalize_input=True,
-    normalize_output=True
+    input_norm_params=config['data']['input_norm_params'],
+    num_blocks_per_file=2000,  # Extract 2000 blocks per file
+    block_size=15,  # 15×15 blocks
+    compute_norm=True,  # Compute normalization stats
+    norm_cache_path=Path('data/processed/norm_cache.pt'),
+    seed=42
 )
 
+# Compute normalization statistics (one-time, cached)
+train_dataset.compute_normalization_stats()
+out_mean, out_std = train_dataset.get_normalization_stats()
+
 # Create DataLoader
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True)
 ```
 
 ### Testing
@@ -210,10 +218,11 @@ This will verify:
 
 The project uses `config.yaml` for all hyperparameters. Key settings:
 
-- **Model**: ViT-small (384 dim, 6 layers) optimized for small dataset
+- **Model**: ViT-small (384 dim, 6 layers, patch_size=1, img_size=15)
 - **Training**: Batch size 2, 50 epochs, aggressive regularization
-- **Data Augmentation**: Enabled by default (flips, rotations) to 8x training data
-- **Normalization**: Placeholder values - run `notebooks/analyze_ranges.py` to get real values
+- **Data Strategy**: 15×15 blocks, 2000 blocks per file (~22k training samples)
+- **Normalization**: Z-score normalization computed from training set, applied in loss function
+- **Data Augmentation**: Enabled by default (flips, rotations) for better generalization
 
 Edit `config.yaml` to experiment with different hyperparameters.
 
@@ -243,10 +252,15 @@ python3 train.py
 The training script will:
 - Load configuration from `config.yaml`
 - Create train/val/test splits
+- Extract 15×15 blocks from geometry images (2000 blocks per file)
+- Compute normalization statistics from training set (one-time, cached)
+- Apply z-score normalization in loss function (matches GAT approach)
 - Apply data augmentation during training
-- Save checkpoints to `results/models/`
-- Log metrics to TensorBoard (`results/logs/tensorboard/`)
+- Save checkpoints to `checkpoints/`
+- Log metrics to TensorBoard (`runs/`)
 - Implement early stopping if validation loss doesn't improve
+
+**Note**: First run will take ~5-10 minutes to compute normalization statistics. Subsequent runs are instant (uses cache).
 
 Monitor training progress:
 ```bash

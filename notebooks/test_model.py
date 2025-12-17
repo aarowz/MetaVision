@@ -43,10 +43,10 @@ def test_forward_pass():
     
     # Test forward pass
     batch_size = 1
-    dummy_input = torch.randn(batch_size, 4, 120, 120)
+    dummy_input = torch.randn(batch_size, 4, 15, 15)  # 15×15 input (matching GAT data strategy)
     
     print(f"\nInput shape: {dummy_input.shape}")
-    print(f"Expected output shape: [{batch_size}, 6, 120, 120]")
+    print(f"Expected output shape: [{batch_size}, 6, 15, 15]")
     
     # Forward pass
     with torch.no_grad():
@@ -55,7 +55,7 @@ def test_forward_pass():
     print(f"Output shape: {output.shape}")
     
     # Verify output shape
-    expected_shape = (batch_size, 6, 120, 120)
+    expected_shape = (batch_size, 6, 15, 15)
     assert output.shape == expected_shape, \
         f"Output shape mismatch! Got {output.shape}, expected {expected_shape}"
     
@@ -64,10 +64,10 @@ def test_forward_pass():
     # Test with different batch sizes
     print("\nTesting with different batch sizes...")
     for bs in [1, 2, 4]:
-        test_input = torch.randn(bs, 4, 120, 120)
+        test_input = torch.randn(bs, 4, 15, 15)
         with torch.no_grad():
             test_output = model(test_input)
-        assert test_output.shape == (bs, 6, 120, 120), \
+        assert test_output.shape == (bs, 6, 15, 15), \
             f"Batch size {bs} failed: got {test_output.shape}"
         print(f"  Batch size {bs}: ✓")
     

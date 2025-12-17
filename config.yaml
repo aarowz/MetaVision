@@ -23,18 +23,18 @@ data:
   split_seed: 42
 
   # Normalization parameters
-  # TODO: Run notebooks/analyze_ranges.py to get actual values and update these
+  # Normalization parameters (updated from analyze_ranges.py)
   normalize_input: true
   normalize_output: true
   input_norm_params:
     R: [0.0, 10.0] # [min, max] - placeholder, update with real values
-    H: [0.0, 100.0]
-    D0: [-10.0, 10.0]
-    D1: [-10.0, 10.0]
+    H: [0.0, 18.0]
+    D0: [-2.0, 2.0]
+    D1: [-2.0, 2.0]
   output_norm_params:
-    Ex: 1000.0 # max absolute value - placeholder, update with real values
-    Ey: 1000.0
-    Ez: 1000.0
+    Ex: 1.218 # max absolute value - placeholder, update with real values
+    Ey: 0.543
+    Ez: 1.091
 
 # ============================================================================
 # MODEL ARCHITECTURE
@@ -44,8 +44,8 @@ model:
   encoder:
     name: "custom" # Using custom ViT (4-channel input, no ImageNet pretraining)
     use_pretrained: false # Cannot use ImageNet pretrained (4-channel vs 3-channel RGB)
-    patch_size: 8 # 8x8 patches (for 120x120 input: 15x15 = 225 patches, divides evenly)
-    img_size: 120 # Input image size
+    patch_size: 1 # 1x1 patches (pixel-wise projection for 15x15 input: 15x15 = 225 patches)
+    img_size: 15 # Input image size (15×15 geometry blocks matching GAT data strategy)
     in_chans: 4 # 4-channel input (R, H, D[0], D[1])
     embed_dim: 384 # Embedding dimension (small ViT - better for small dataset)
     depth: 6 # Number of transformer layers (reduced for small dataset)
@@ -56,14 +56,16 @@ model:
     attn_drop_rate: 0.1 # Attention dropout rate (increased regularization)
     drop_path_rate: 0.1 # Stochastic depth rate
 
-  # Decoder (maps ViT features to output image)
+  # Decoder (removed - direct projection from ViT to output)
+  # Architecture: PatchEmbed → ViT → Reshape → Output Head
+  # No upsampling needed since input/output are both 15×15
   decoder:
-    type: "cnn" # Options: "cnn", "transformer", "hybrid"
-    # CNN Decoder settings (adjusted for smaller encoder)
-    decoder_channels: [256, 128, 64, 32] # Channel progression (reduced to match smaller encoder)
-    decoder_upsample: "bilinear" # Upsampling method: "bilinear", "transpose"
+    type: "none" # Decoder removed - direct projection from ViT features
+    # Legacy fields kept for compatibility (not used)
+    decoder_channels: [256, 128, 64, 32]
+    decoder_upsample: "bilinear"
     use_batch_norm: true
-    activation: "relu" # Options: "relu", "gelu", "swish"
+    activation: "relu"
 
   # Output head
   output_head:

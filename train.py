@@ -60,11 +60,11 @@ def get_loss_function(loss_name: str, loss_params: dict = None):
     elif loss_name.lower() == "mae":
         return nn.L1Loss()
     elif loss_name.lower() == "huber":
-        delta = loss_params.get("delta", 1.0)
+        delta = float(loss_params.get("delta", 1.0))
         return nn.HuberLoss(delta=delta)
     elif loss_name.lower() == "combined":
-        mse_weight = loss_params.get("mse_weight", 0.7)
-        mae_weight = loss_params.get("mae_weight", 0.3)
+        mse_weight = float(loss_params.get("mse_weight", 0.7))
+        mae_weight = float(loss_params.get("mae_weight", 0.3))
         mse_loss = nn.MSELoss()
         mae_loss = nn.L1Loss()
         
@@ -81,27 +81,33 @@ def get_optimizer(model, optimizer_name: str, lr: float, weight_decay: float, op
     optimizer_params = optimizer_params or {}
     
     if optimizer_name.lower() == "adamw":
+        betas = optimizer_params.get("betas", [0.9, 0.999])
+        if isinstance(betas, list):
+            betas = [float(b) for b in betas]
         return optim.AdamW(
             model.parameters(),
             lr=lr,
             weight_decay=weight_decay,
-            betas=optimizer_params.get("betas", [0.9, 0.999]),
-            eps=optimizer_params.get("eps", 1e-8)
+            betas=betas,
+            eps=float(optimizer_params.get("eps", 1e-8))
         )
     elif optimizer_name.lower() == "adam":
+        betas = optimizer_params.get("betas", [0.9, 0.999])
+        if isinstance(betas, list):
+            betas = [float(b) for b in betas]
         return optim.Adam(
             model.parameters(),
             lr=lr,
             weight_decay=weight_decay,
-            betas=optimizer_params.get("betas", [0.9, 0.999]),
-            eps=optimizer_params.get("eps", 1e-8)
+            betas=betas,
+            eps=float(optimizer_params.get("eps", 1e-8))
         )
     elif optimizer_name.lower() == "sgd":
         return optim.SGD(
             model.parameters(),
             lr=lr,
             weight_decay=weight_decay,
-            momentum=optimizer_params.get("momentum", 0.9)
+            momentum=float(optimizer_params.get("momentum", 0.9))
         )
     else:
         raise ValueError(f"Unknown optimizer: {optimizer_name}")
@@ -114,22 +120,22 @@ def get_scheduler(optimizer, scheduler_name: str, scheduler_params: dict = None)
     if scheduler_name.lower() == "cosine":
         return optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=scheduler_params.get("T_max", 100),
-            eta_min=scheduler_params.get("eta_min", 0)
+            T_max=int(scheduler_params.get("T_max", 100)),
+            eta_min=float(scheduler_params.get("eta_min", 0))
         )
     elif scheduler_name.lower() == "step":
         return optim.lr_scheduler.StepLR(
             optimizer,
-            step_size=scheduler_params.get("step_size", 30),
-            gamma=scheduler_params.get("gamma", 0.1)
+            step_size=int(scheduler_params.get("step_size", 30)),
+            gamma=float(scheduler_params.get("gamma", 0.1))
         )
     elif scheduler_name.lower() == "plateau":
         return optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="min",
-            factor=scheduler_params.get("factor", 0.1),
-            patience=scheduler_params.get("patience", 10),
-            min_lr=scheduler_params.get("min_lr", 0)
+            factor=float(scheduler_params.get("factor", 0.1)),
+            patience=int(scheduler_params.get("patience", 10)),
+            min_lr=float(scheduler_params.get("min_lr", 0))
         )
     elif scheduler_name.lower() == "none":
         return None
@@ -139,13 +145,21 @@ def get_scheduler(optimizer, scheduler_name: str, scheduler_params: dict = None)
 
 def train_epoch(model, dataloader, criterion, optimizer, device, 
                 gradient_clip: float = 0.0, use_amp: bool = False, 
-                aug_transform=None):
+                aug_transform=None, out_mean=None, out_std=None):
     """Train for one epoch."""
     model.train()
     total_loss = 0.0
     num_batches = 0
     
     scaler = torch.cuda.amp.GradScaler() if use_amp else None
+    
+    # Prepare normalization tensors if provided
+    if out_mean is not None and out_std is not None:
+        mu = out_mean.view(1, -1, 1, 1).to(device)  # [1, 6, 1, 1]
+        sg = out_std.view(1, -1, 1, 1).to(device)    # [1, 6, 1, 1]
+    else:
+        mu = None
+        sg = None
     
     pbar = tqdm(dataloader, desc="Training")
     for batch_idx, (inputs, targets) in enumerate(pbar):
@@ -164,7 +178,11 @@ def train_epoch(model, dataloader, criterion, optimizer, device,
         if use_amp:
             with torch.cuda.amp.autocast():
                 outputs = model(inputs)
-                loss = criterion(outputs, targets)
+                # Apply z-score normalization before computing loss
+                if mu is not None and sg is not None:
+                    loss = criterion((outputs - mu) / sg, (targets - mu) / sg)
+                else:
+                    loss = criterion(outputs, targets)
             
             scaler.scale(loss).backward()
             if gradient_clip > 0:
@@ -174,7 +192,11 @@ def train_epoch(model, dataloader, criterion, optimizer, device,
             scaler.update()
         else:
             outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            # Apply z-score normalization before computing loss
+            if mu is not None and sg is not None:
+                loss = criterion((outputs - mu) / sg, (targets - mu) / sg)
+            else:
+                loss = criterion(outputs, targets)
             loss.backward()
             
             if gradient_clip > 0:
@@ -190,11 +212,19 @@ def train_epoch(model, dataloader, criterion, optimizer, device,
     return total_loss / num_batches if num_batches > 0 else 0.0
 
 
-def validate_epoch(model, dataloader, criterion, device):
+def validate_epoch(model, dataloader, criterion, device, out_mean=None, out_std=None):
     """Validate for one epoch."""
     model.eval()
     total_loss = 0.0
     num_batches = 0
+    
+    # Prepare normalization tensors if provided
+    if out_mean is not None and out_std is not None:
+        mu = out_mean.view(1, -1, 1, 1).to(device)  # [1, 6, 1, 1]
+        sg = out_std.view(1, -1, 1, 1).to(device)    # [1, 6, 1, 1]
+    else:
+        mu = None
+        sg = None
     
     with torch.no_grad():
         pbar = tqdm(dataloader, desc="Validation")
@@ -203,7 +233,11 @@ def validate_epoch(model, dataloader, criterion, device):
             targets = targets.to(device)
             
             outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            # Apply z-score normalization before computing loss
+            if mu is not None and sg is not None:
+                loss = criterion((outputs - mu) / sg, (targets - mu) / sg)
+            else:
+                loss = criterion(outputs, targets)
             
             total_loss += loss.item()
             num_batches += 1
@@ -297,24 +331,43 @@ def main():
     
     # Create datasets
     data_dir = PROJECT_ROOT / config["data"]["data_dir"]
+    norm_cache_path = PROJECT_ROOT / "data" / "processed" / "norm_cache.pt"
     train_dataset = MetasurfaceDataset(
         data_dir=data_dir,
         file_indices=train_idx,
         split="train",
         normalize_input=config["data"]["normalize_input"],
-        normalize_output=config["data"]["normalize_output"],
         input_norm_params=config["data"]["input_norm_params"],
-        output_norm_params=config["data"]["output_norm_params"]
+        num_blocks_per_file=2000,  # Match GAT's data strategy
+        block_size=15,  # 15×15 blocks matching GAT
+        compute_norm=True,  # Enable normalization stats computation for training set
+        norm_cache_path=norm_cache_path,
+        seed=seed
     )
     
+    # Compute normalization statistics from training dataset FIRST
+    print("Computing normalization statistics from training set...")
+    train_dataset.compute_normalization_stats()
+    
+    # Get normalization stats for loss computation
+    out_mean, out_std = train_dataset.get_normalization_stats()
+    print("Output normalization stats computed:")
+    print(f"  Mean (per channel): {out_mean}")
+    print(f"  Std  (per channel): {out_std}")
+    print("  Stats cached to: data/processed/norm_cache.pt")
+    
+    # NOW create validation dataset (cache exists)
     val_dataset = MetasurfaceDataset(
         data_dir=data_dir,
         file_indices=val_idx,
         split="val",
         normalize_input=config["data"]["normalize_input"],
-        normalize_output=config["data"]["normalize_output"],
         input_norm_params=config["data"]["input_norm_params"],
-        output_norm_params=config["data"]["output_norm_params"]
+        num_blocks_per_file=2000,  # Match GAT's data strategy
+        block_size=15,  # 15×15 blocks matching GAT
+        compute_norm=False,  # Use cached stats from training set
+        norm_cache_path=norm_cache_path,
+        seed=seed
     )
     
     # Get augmentation transform
@@ -357,8 +410,8 @@ def main():
     optimizer = get_optimizer(
         model,
         config["training"]["optimizer"],
-        config["training"]["learning_rate"],
-        config["training"]["weight_decay"],
+        float(config["training"]["learning_rate"]),
+        float(config["training"]["weight_decay"]),
         config["training"]["optimizer_params"]
     )
     
@@ -380,14 +433,14 @@ def main():
             start_epoch += 1
     
     # Training loop
-    num_epochs = config["training"]["num_epochs"]
+    num_epochs = int(config["training"]["num_epochs"])
     use_amp = config["training"]["mixed_precision"]
-    gradient_clip = config["training"]["gradient_clip"]
+    gradient_clip = float(config["training"]["gradient_clip"])
     
     # Early stopping
     early_stopping = config["training"]["early_stopping"]
-    patience = early_stopping["patience"] if early_stopping["enabled"] else None
-    min_delta = early_stopping.get("min_delta", 0.0)
+    patience = int(early_stopping["patience"]) if early_stopping["enabled"] else None
+    min_delta = float(early_stopping.get("min_delta", 0.0))
     patience_counter = 0
     
     print(f"\nStarting training for {num_epochs} epochs...")
@@ -404,11 +457,14 @@ def main():
             model, train_loader, criterion, optimizer, device,
             gradient_clip=gradient_clip,
             use_amp=use_amp,
-            aug_transform=aug_transform
+            aug_transform=aug_transform,
+            out_mean=out_mean,
+            out_std=out_std
         )
         
         # Validate
-        val_loss = validate_epoch(model, val_loader, criterion, device)
+        val_loss = validate_epoch(model, val_loader, criterion, device, 
+                                  out_mean=out_mean, out_std=out_std)
         
         # Update learning rate
         if scheduler is not None:

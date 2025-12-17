@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2025-12-16] - Data Strategy and Architecture Refinement
+
+### Added
+
+- **Data loader rewrite** (`src/data_loader.py`):
+  - Block-based data extraction: 15×15 blocks from 120×120 geometry images
+  - 2000 random blocks per file (total ~22k training samples, matching GAT)
+  - Z-score normalization: Computed from training set, applied in loss function
+  - Normalization stats caching: `data/processed/norm_cache.pt` for fast subsequent runs
+  - Reproducible block extraction using `np.random.RandomState` per file
+- **Training script updates** (`train.py`):
+  - Normalization stats computation integrated into training pipeline
+  - Z-score normalization applied in loss function (matches GAT's approach)
+  - Stats computed once, cached for future runs
+  - Proper ordering: compute stats before creating validation dataset
+
+### Changed
+
+- **Model architecture simplified** (`src/model.py`):
+  - Removed decoder upsampling stages (no longer needed)
+  - Architecture: PatchEmbed → ViT → Reshape → Output Head
+  - Input/output: `[B, 4, 15, 15]` → `[B, 6, 15, 15]` (15×15 blocks)
+  - Patch size: 8 → 1 (pixel-wise projection for 15×15 input)
+  - Total parameters: ~10.7M (vs GAT's ~13M)
+- **Config updates** (`config.yaml`):
+  - `img_size`: 120 → 15
+  - `patch_size`: 8 → 1
+  - Decoder section marked as unused (kept for compatibility)
+- **Data normalization strategy**:
+  - Input: Min-max scaling per channel (unchanged)
+  - Output: Max-abs → Z-score normalization (computed from training set)
+  - Normalization applied in loss function, not in data loader
+
+### Fixed
+
+- Dataset creation order: Normalization stats computed before validation dataset creation
+- Path consistency: Single `norm_cache_path` used throughout training script
+
+### Design Decisions
+
+- **15×15 blocks**: Matches GAT's data strategy for fair comparison
+- **Z-score normalization**: Applied in loss function (raw targets from dataset)
+- **No decoder**: Simplified architecture, direct projection sufficient for 15×15 output
+- **Reproducible sampling**: Uses `RandomState` for deterministic block extraction
+
 ## [2025-12-16] - Model Implementation and Training Script Complete
 
 ### Added
